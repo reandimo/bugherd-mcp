@@ -243,6 +243,11 @@ const UpdateTaskSchema = z.object({
     .optional()
     .describe("New priority for the task"),
   description: z.string().optional().describe("New description for the task"),
+  assigned_to_id: z
+    .number()
+    .nullable()
+    .optional()
+    .describe("User ID to assign the task to (or null to unassign)"),
 });
 
 // Columns
@@ -696,7 +701,7 @@ const TOOLS = [
   {
     name: "bugherd_update_task",
     description:
-      "Update a task's status, priority, or description. Use this to mark tasks as done or move them through workflow stages.",
+      "Update a task's status, priority, description, or assignee. Use this to mark tasks as done, move them through workflow stages, or assign them to users.",
     inputSchema: {
       type: "object" as const,
       properties: {
@@ -715,6 +720,10 @@ const TOOLS = [
         description: {
           type: "string",
           description: "New description for the task",
+        },
+        assigned_to_id: {
+          type: "number",
+          description: "User ID to assign the task to (or null to unassign)",
         },
       },
       required: ["project_id", "task_id"],
@@ -1535,6 +1544,7 @@ ${pageUrl}
           status: parsed.status,
           priority: parsed.priority,
           description: parsed.description,
+          assigned_to_id: parsed.assigned_to_id,
         };
         const result = await updateTask(
           parsed.project_id,

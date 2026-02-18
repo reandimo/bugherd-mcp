@@ -137,7 +137,7 @@ Add to your MCP desktop app config:
 | `bugherd_get_task_by_local_id` | Get task by local ID (#123)                     |
 | `bugherd_create_task`          | Create a new task                               |
 | `bugherd_move_tasks`           | Move tasks between projects                     |
-| `bugherd_update_task`          | Update task status/priority/description         |
+| `bugherd_update_task`          | Update task status/priority/description/assignee |
 
 ### Columns
 
