@@ -37,3 +37,5 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 .claude/
 .cursor/
 CLAUDE.md
+.mcpregistry_github_token
+.mcpregistry_registry_token

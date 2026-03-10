@@ -7,22 +7,22 @@
  */
 
 import type {
-  BugherdOrganizationResponse,
-  BugherdUsersResponse,
-  BugherdMembersResponse,
-  BugherdGuestsResponse,
-  BugherdProjectsResponse,
-  BugherdProjectResponse,
-  BugherdTasksResponse,
-  BugherdTaskResponse,
-  BugherdCommentsResponse,
-  BugherdAttachmentsResponse,
   BugherdAttachmentResponse,
-  BugherdWebhooksResponse,
-  BugherdWebhookResponse,
+  BugherdAttachmentsResponse,
   BugherdColumnResponse,
   BugherdColumnsResponse,
+  BugherdCommentsResponse,
+  BugherdGuestsResponse,
+  BugherdMembersResponse,
+  BugherdOrganizationResponse,
+  BugherdProjectResponse,
+  BugherdProjectsResponse,
+  BugherdTaskResponse,
+  BugherdTasksResponse,
+  BugherdUsersResponse,
   BugherdWebhookEvent,
+  BugherdWebhookResponse,
+  BugherdWebhooksResponse,
 } from "../types/bugherd.js";
 
 const BUGHERD_BASE_URL = "https://www.bugherd.com/api_v2";
@@ -44,10 +44,7 @@ function getApiKey(): string {
 /**
  * Make an authenticated request to the BugHerd API
  */
-async function bugherdRequest<T>(
-  endpoint: string,
-  options: RequestInit = {},
-): Promise<T> {
+async function bugherdRequest<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
   const apiKey = getApiKey();
   const auth = Buffer.from(`${apiKey}:x`).toString("base64");
 
@@ -65,14 +62,10 @@ async function bugherdRequest<T>(
 
   if (!response.ok) {
     if (response.status === 429) {
-      throw new Error(
-        "BugHerd API rate limit exceeded. Wait a moment and try again.",
-      );
+      throw new Error("BugHerd API rate limit exceeded. Wait a moment and try again.");
     }
     if (response.status === 401) {
-      throw new Error(
-        "BugHerd API authentication failed. Check your BUGHERD_API_KEY.",
-      );
+      throw new Error("BugHerd API authentication failed. Check your BUGHERD_API_KEY.");
     }
     if (response.status === 404) {
       throw new Error(`BugHerd resource not found: ${endpoint}`);
@@ -152,12 +145,8 @@ export async function getUserTasks(
 /**
  * Get projects for a specific user
  */
-export async function getUserProjects(
-  userId: number,
-): Promise<BugherdProjectsResponse> {
-  return bugherdRequest<BugherdProjectsResponse>(
-    `/users/${userId}/projects.json`,
-  );
+export async function getUserProjects(userId: number): Promise<BugherdProjectsResponse> {
+  return bugherdRequest<BugherdProjectsResponse>(`/users/${userId}/projects.json`);
 }
 
 // ============================================================================
@@ -181,9 +170,7 @@ export async function listActiveProjects(): Promise<BugherdProjectsResponse> {
 /**
  * Get a single project by ID
  */
-export async function getProject(
-  projectId: number,
-): Promise<BugherdProjectResponse> {
+export async function getProject(projectId: number): Promise<BugherdProjectResponse> {
   return bugherdRequest<BugherdProjectResponse>(`/projects/${projectId}.json`);
 }
 
@@ -197,9 +184,7 @@ export interface CreateProjectData {
 /**
  * Create a new project
  */
-export async function createProject(
-  data: CreateProjectData,
-): Promise<BugherdProjectResponse> {
+export async function createProject(data: CreateProjectData): Promise<BugherdProjectResponse> {
   return bugherdRequest<BugherdProjectResponse>("/projects.json", {
     method: "POST",
     body: JSON.stringify({ project: data }),
@@ -238,10 +223,7 @@ export async function deleteProject(projectId: number): Promise<void> {
 /**
  * Add a member to a project
  */
-export async function addMember(
-  projectId: number,
-  userId: number,
-): Promise<void> {
+export async function addMember(projectId: number, userId: number): Promise<void> {
   await bugherdRequest<void>(`/projects/${projectId}/add_member.json`, {
     method: "POST",
     body: JSON.stringify({ user_id: userId }),
@@ -251,14 +233,9 @@ export async function addMember(
 /**
  * Add a guest/client to a project
  */
-export async function addGuest(
-  projectId: number,
-  userIdOrEmail: number | string,
-): Promise<void> {
+export async function addGuest(projectId: number, userIdOrEmail: number | string): Promise<void> {
   const body =
-    typeof userIdOrEmail === "number"
-      ? { user_id: userIdOrEmail }
-      : { email: userIdOrEmail };
+    typeof userIdOrEmail === "number" ? { user_id: userIdOrEmail } : { email: userIdOrEmail };
   await bugherdRequest<void>(`/projects/${projectId}/add_guest.json`, {
     method: "POST",
     body: JSON.stringify(body),
@@ -331,8 +308,7 @@ export async function listTasks(
   // Priority filter works server-side
   if (options.priority) params.set("priority", options.priority);
   if (options.tag) params.set("tag", options.tag);
-  if (options.assignedTo)
-    params.set("assigned_to_id", options.assignedTo.toString());
+  if (options.assignedTo) params.set("assigned_to_id", options.assignedTo.toString());
   if (options.page) params.set("page", options.page.toString());
 
   const query = params.toString();
@@ -342,7 +318,7 @@ export async function listTasks(
 
   // Apply status filter client-side for custom columns
   if (options.status) {
-    const { idToName, nameToId } = await getColumnMappings(projectId);
+    const { nameToId } = await getColumnMappings(projectId);
     const targetStatusLower = options.status.toLowerCase();
 
     // Find the column ID for the requested status
@@ -350,9 +326,7 @@ export async function listTasks(
 
     if (targetColumnId !== undefined) {
       // Filter tasks by status_id matching the column ID
-      result.tasks = result.tasks.filter(
-        (task) => task.status_id === targetColumnId,
-      );
+      result.tasks = result.tasks.filter((task) => task.status_id === targetColumnId);
       result.meta.count = result.tasks.length;
     }
   }
@@ -363,21 +337,14 @@ export async function listTasks(
 /**
  * Get a single task by ID
  */
-export async function getTask(
-  projectId: number,
-  taskId: number,
-): Promise<BugherdTaskResponse> {
-  return bugherdRequest<BugherdTaskResponse>(
-    `/projects/${projectId}/tasks/${taskId}.json`,
-  );
+export async function getTask(projectId: number, taskId: number): Promise<BugherdTaskResponse> {
+  return bugherdRequest<BugherdTaskResponse>(`/projects/${projectId}/tasks/${taskId}.json`);
 }
 
 /**
  * Get a task globally (without project_id)
  */
-export async function getTaskGlobal(
-  taskId: number,
-): Promise<BugherdTaskResponse> {
+export async function getTaskGlobal(taskId: number): Promise<BugherdTaskResponse> {
   return bugherdRequest<BugherdTaskResponse>(`/tasks/${taskId}.json`);
 }
 
@@ -414,9 +381,7 @@ export async function listArchivedTasks(
   page?: number,
 ): Promise<BugherdTasksResponse> {
   const params = page ? `?page=${page}` : "";
-  return bugherdRequest<BugherdTasksResponse>(
-    `/projects/${projectId}/tasks/archive.json${params}`,
-  );
+  return bugherdRequest<BugherdTasksResponse>(`/projects/${projectId}/tasks/archive.json${params}`);
 }
 
 /**
@@ -449,13 +414,10 @@ export async function createTask(
   projectId: number,
   data: CreateTaskData,
 ): Promise<BugherdTaskResponse> {
-  return bugherdRequest<BugherdTaskResponse>(
-    `/projects/${projectId}/tasks.json`,
-    {
-      method: "POST",
-      body: JSON.stringify({ task: data }),
-    },
-  );
+  return bugherdRequest<BugherdTaskResponse>(`/projects/${projectId}/tasks.json`, {
+    method: "POST",
+    body: JSON.stringify({ task: data }),
+  });
 }
 
 /**
@@ -490,17 +452,14 @@ export async function updateTask(
   projectId: number,
   taskId: number,
   options: UpdateTaskOptions,
-): Promise<
-  BugherdTaskResponse & { _debug?: { request: unknown; rawResponse?: string } }
-> {
+): Promise<BugherdTaskResponse & { _debug?: { request: unknown; rawResponse?: string } }> {
   const task: Record<string, unknown> = {};
 
   // BugHerd API uses string values for status and priority
   if (options.status) task.status = options.status;
   if (options.priority) task.priority = options.priority;
   if (options.description !== undefined) task.description = options.description;
-  if (options.assigned_to_id !== undefined)
-    task.assigned_to_id = options.assigned_to_id;
+  if (options.assigned_to_id !== undefined) task.assigned_to_id = options.assigned_to_id;
 
   const requestBody = { task };
   const endpoint = `/projects/${projectId}/tasks/${taskId}.json`;
@@ -528,7 +487,11 @@ export async function updateTask(
 
   try {
     parsed = JSON.parse(rawText);
-  } catch {
+  } catch (parseError) {
+    console.error(
+      "[updateTask] JSON parse failed:",
+      parseError instanceof Error ? parseError.message : String(parseError),
+    );
     throw new Error(`BugHerd returned invalid JSON: ${rawText}`);
   }
 
@@ -550,12 +513,8 @@ export async function updateTask(
  * List all columns (statuses) for a project
  * Projects with custom Kanban boards have custom column IDs
  */
-export async function listColumns(
-  projectId: number,
-): Promise<BugherdColumnsResponse> {
-  return bugherdRequest<BugherdColumnsResponse>(
-    `/projects/${projectId}/columns.json`,
-  );
+export async function listColumns(projectId: number): Promise<BugherdColumnsResponse> {
+  return bugherdRequest<BugherdColumnsResponse>(`/projects/${projectId}/columns.json`);
 }
 
 /**
@@ -565,9 +524,7 @@ export async function getColumn(
   projectId: number,
   columnId: number,
 ): Promise<BugherdColumnResponse> {
-  return bugherdRequest<BugherdColumnResponse>(
-    `/projects/${projectId}/columns/${columnId}.json`,
-  );
+  return bugherdRequest<BugherdColumnResponse>(`/projects/${projectId}/columns/${columnId}.json`);
 }
 
 export interface CreateColumnData {
@@ -582,13 +539,10 @@ export async function createColumn(
   projectId: number,
   data: CreateColumnData,
 ): Promise<BugherdColumnResponse> {
-  return bugherdRequest<BugherdColumnResponse>(
-    `/projects/${projectId}/columns.json`,
-    {
-      method: "POST",
-      body: JSON.stringify({ column: data }),
-    },
-  );
+  return bugherdRequest<BugherdColumnResponse>(`/projects/${projectId}/columns.json`, {
+    method: "POST",
+    body: JSON.stringify({ column: data }),
+  });
 }
 
 export interface UpdateColumnData {
@@ -604,13 +558,10 @@ export async function updateColumn(
   columnId: number,
   data: UpdateColumnData,
 ): Promise<BugherdColumnResponse> {
-  return bugherdRequest<BugherdColumnResponse>(
-    `/projects/${projectId}/columns/${columnId}.json`,
-    {
-      method: "PUT",
-      body: JSON.stringify({ column: data }),
-    },
-  );
+  return bugherdRequest<BugherdColumnResponse>(`/projects/${projectId}/columns/${columnId}.json`, {
+    method: "PUT",
+    body: JSON.stringify({ column: data }),
+  });
 }
 
 // ============================================================================
@@ -782,9 +733,7 @@ export interface CreateWebhookData {
 /**
  * Create a webhook
  */
-export async function createWebhook(
-  data: CreateWebhookData,
-): Promise<BugherdWebhookResponse> {
+export async function createWebhook(data: CreateWebhookData): Promise<BugherdWebhookResponse> {
   return bugherdRequest<BugherdWebhookResponse>("/webhooks.json", {
     method: "POST",
     body: JSON.stringify({ webhook: data }),
@@ -811,7 +760,11 @@ export async function verifyConnection(): Promise<boolean> {
   try {
     await listProjects();
     return true;
-  } catch {
+  } catch (err) {
+    console.error(
+      "[verifyConnection] Check failed:",
+      err instanceof Error ? err.message : String(err),
+    );
     return false;
   }
 }

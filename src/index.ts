@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+
 /**
  * BugHerd MCP Server
  *
@@ -9,79 +10,75 @@
  * @license MIT
  */
 
+import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
-import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
-import {
-  CallToolRequestSchema,
-  ListToolsRequestSchema,
-} from "@modelcontextprotocol/sdk/types.js";
+import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod/v4";
-import { createServer, IncomingMessage, ServerResponse } from "http";
 
 import {
+  addGuest,
+  addMember,
+  type CreateAttachmentData,
+  type CreateColumnData,
+  type CreateCommentData,
+  type CreateProjectData,
+  type CreateTaskData,
+  type CreateWebhookData,
+  createAttachment,
+  createColumn,
+  createComment,
+  createProject,
+  createTask,
+  createWebhook,
+  deleteAttachment,
+  deleteProject,
+  deleteWebhook,
+  getAttachment,
+  getColumn,
   // Organization
   getOrganization,
-  // Users
-  listUsers,
-  listMembers,
-  listGuests,
-  getUserTasks,
-  getUserProjects,
-  // Projects
-  listProjects,
-  listActiveProjects,
   getProject,
-  createProject,
-  updateProject,
-  deleteProject,
-  addMember,
-  addGuest,
-  // Tasks
-  listTasks,
+  getStatusNameForProject,
   getTask,
-  getTaskGlobal,
   getTaskByLocalId,
-  listFeedbackTasks,
+  getTaskGlobal,
+  getUserProjects,
+  getUserTasks,
+  type ListTasksOptions,
+  type ListUserTasksOptions,
+  listActiveProjects,
   listArchivedTasks,
-  listTaskboardTasks,
-  createTask,
-  moveTasks,
-  updateTask,
-  // Columns
-  listColumns,
-  getColumn,
-  createColumn,
-  updateColumn,
-  // Comments
-  listComments,
-  createComment,
   // Attachments
   listAttachments,
-  getAttachment,
-  createAttachment,
-  uploadAttachment,
-  deleteAttachment,
+  // Columns
+  listColumns,
+  // Comments
+  listComments,
+  listFeedbackTasks,
+  listGuests,
+  listMembers,
+  // Projects
+  listProjects,
+  listTaskboardTasks,
+  // Tasks
+  listTasks,
+  // Users
+  listUsers,
   // Webhooks
   listWebhooks,
-  createWebhook,
-  deleteWebhook,
+  moveTasks,
+  type UpdateColumnData,
+  type UpdateProjectData,
+  type UpdateTaskOptions,
+  updateColumn,
+  updateProject,
+  updateTask,
   // Utils
   verifyConnection,
-  getStatusNameForProject,
-  type ListTasksOptions,
-  type UpdateTaskOptions,
-  type CreateProjectData,
-  type UpdateProjectData,
-  type CreateTaskData,
-  type CreateColumnData,
-  type UpdateColumnData,
-  type CreateCommentData,
-  type CreateAttachmentData,
-  type CreateWebhookData,
-  type ListUserTasksOptions,
 } from "./api/client.js";
-import { getPriorityName, type BugherdWebhookEvent } from "./types/bugherd.js";
+import { type BugherdWebhookEvent, getPriorityName } from "./types/bugherd.js";
 
 // ============================================================================
 // Server Setup
@@ -104,12 +101,12 @@ const server = new Server(
 // ============================================================================
 
 // Organization
-const GetOrganizationSchema = z.object({});
+const _GetOrganizationSchema = z.object({});
 
 // Users
-const ListUsersSchema = z.object({});
-const ListMembersSchema = z.object({});
-const ListGuestsSchema = z.object({});
+const _ListUsersSchema = z.object({});
+const _ListMembersSchema = z.object({});
+const _ListGuestsSchema = z.object({});
 
 const GetUserTasksSchema = z.object({
   user_id: z.number().describe("The user ID"),
@@ -126,8 +123,8 @@ const GetUserProjectsSchema = z.object({
 });
 
 // Projects
-const ListProjectsSchema = z.object({});
-const ListActiveProjectsSchema = z.object({});
+const _ListProjectsSchema = z.object({});
+const _ListActiveProjectsSchema = z.object({});
 
 const GetProjectSchema = z.object({
   project_id: z.number().describe("The BugHerd project ID"),
@@ -235,9 +232,7 @@ const UpdateTaskSchema = z.object({
   status: z
     .string()
     .optional()
-    .describe(
-      "New status for the task (use column name from bugherd_list_columns)",
-    ),
+    .describe("New status for the task (use column name from bugherd_list_columns)"),
   priority: z
     .enum(["critical", "important", "normal", "minor"])
     .optional()
@@ -284,10 +279,7 @@ const CreateCommentSchema = z.object({
   task_id: z.number().describe("The task ID"),
   text: z.string().describe("Comment text"),
   user_id: z.number().optional().describe("User ID posting the comment"),
-  email: z
-    .string()
-    .optional()
-    .describe("Email of the user posting the comment"),
+  email: z.string().optional().describe("Email of the user posting the comment"),
 });
 
 // Attachments
@@ -316,23 +308,14 @@ const DeleteAttachmentSchema = z.object({
 });
 
 // Webhooks
-const ListWebhooksSchema = z.object({});
+const _ListWebhooksSchema = z.object({});
 
 const CreateWebhookSchema = z.object({
   event: z
-    .enum([
-      "project_create",
-      "task_create",
-      "task_update",
-      "comment",
-      "task_destroy",
-    ])
+    .enum(["project_create", "task_create", "task_update", "comment", "task_destroy"])
     .describe("Event type that triggers the webhook"),
   target_url: z.string().describe("URL to receive webhook POST requests"),
-  project_id: z
-    .number()
-    .optional()
-    .describe("Optional project ID to scope the webhook"),
+  project_id: z.number().optional().describe("Optional project ID to scope the webhook"),
 });
 
 const DeleteWebhookSchema = z.object({
@@ -349,8 +332,7 @@ const TOOLS = [
   // ==========================================================================
   {
     name: "bugherd_get_organization",
-    description:
-      "Get organization/account details including name and timezone.",
+    description: "Get organization/account details including name and timezone.",
     inputSchema: {
       type: "object" as const,
       properties: {},
@@ -497,8 +479,7 @@ const TOOLS = [
   },
   {
     name: "bugherd_delete_project",
-    description:
-      "⚠️ DESTRUCTIVE: Delete a project and all its tasks permanently.",
+    description: "⚠️ DESTRUCTIVE: Delete a project and all its tasks permanently.",
     inputSchema: {
       type: "object" as const,
       properties: {
@@ -595,8 +576,7 @@ const TOOLS = [
   },
   {
     name: "bugherd_list_taskboard_tasks",
-    description:
-      "List taskboard tasks (not feedback, not archived) for a project.",
+    description: "List taskboard tasks (not feedback, not archived) for a project.",
     inputSchema: {
       type: "object" as const,
       properties: {
@@ -621,8 +601,7 @@ const TOOLS = [
   },
   {
     name: "bugherd_get_task_global",
-    description:
-      "Get a task by its global ID (without needing the project ID).",
+    description: "Get a task by its global ID (without needing the project ID).",
     inputSchema: {
       type: "object" as const,
       properties: {
@@ -709,8 +688,7 @@ const TOOLS = [
         task_id: { type: "number", description: "The task ID to update" },
         status: {
           type: "string",
-          description:
-            "New status for the task (use column name from bugherd_list_columns)",
+          description: "New status for the task (use column name from bugherd_list_columns)",
         },
         priority: {
           type: "string",
@@ -896,20 +874,13 @@ const TOOLS = [
   },
   {
     name: "bugherd_create_webhook",
-    description:
-      "Create a webhook to receive notifications for BugHerd events.",
+    description: "Create a webhook to receive notifications for BugHerd events.",
     inputSchema: {
       type: "object" as const,
       properties: {
         event: {
           type: "string",
-          enum: [
-            "project_create",
-            "task_create",
-            "task_update",
-            "comment",
-            "task_destroy",
-          ],
+          enum: ["project_create", "task_create", "task_update", "comment", "task_destroy"],
           description: "Event type that triggers the webhook",
         },
         target_url: {
@@ -1057,15 +1028,12 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         const tasks = result.tasks;
         if (tasks.length === 0) {
           return {
-            content: [
-              { type: "text" as const, text: "No tasks found for this user." },
-            ],
+            content: [{ type: "text" as const, text: "No tasks found for this user." }],
           };
         }
         const taskList = tasks
           .map(
-            (t) =>
-              `- Task #${t.local_task_id} (ID: ${t.id}): ${t.description.substring(0, 80)}...`,
+            (t) => `- Task #${t.local_task_id} (ID: ${t.id}): ${t.description.substring(0, 80)}...`,
           )
           .join("\n");
         return {
@@ -1092,9 +1060,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             ],
           };
         }
-        const projectList = projects
-          .map((p) => `- **${p.name}** (ID: ${p.id})`)
-          .join("\n");
+        const projectList = projects.map((p) => `- **${p.name}** (ID: ${p.id})`).join("\n");
         return {
           content: [
             {
@@ -1142,9 +1108,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         const projects = result.projects;
         if (projects.length === 0) {
           return {
-            content: [
-              { type: "text" as const, text: "No active projects found." },
-            ],
+            content: [{ type: "text" as const, text: "No active projects found." }],
           };
         }
         const projectList = projects
@@ -1291,17 +1255,11 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         }
         const taskListItems = await Promise.all(
           tasks.map(async (t) => {
-            const status = await getStatusNameForProject(
-              parsed.project_id,
-              t.status_id,
-            );
+            const status = await getStatusNameForProject(parsed.project_id, t.status_id);
             const priority = getPriorityName(t.priority_id);
-            const tags =
-              t.tag_names.length > 0 ? t.tag_names.join(", ") : "none";
+            const tags = t.tag_names.length > 0 ? t.tag_names.join(", ") : "none";
             const description =
-              t.description.length > 100
-                ? t.description.substring(0, 100) + "..."
-                : t.description;
+              t.description.length > 100 ? `${t.description.substring(0, 100)}...` : t.description;
             return `### Task #${t.local_task_id} (ID: ${t.id})
 - **Status:** ${status}
 - **Priority:** ${priority}
@@ -1329,15 +1287,12 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         const tasks = result.tasks;
         if (tasks.length === 0) {
           return {
-            content: [
-              { type: "text" as const, text: "No feedback tasks found." },
-            ],
+            content: [{ type: "text" as const, text: "No feedback tasks found." }],
           };
         }
         const taskList = tasks
           .map(
-            (t) =>
-              `- Task #${t.local_task_id} (ID: ${t.id}): ${t.description.substring(0, 80)}...`,
+            (t) => `- Task #${t.local_task_id} (ID: ${t.id}): ${t.description.substring(0, 80)}...`,
           )
           .join("\n");
         return {
@@ -1356,15 +1311,12 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         const tasks = result.tasks;
         if (tasks.length === 0) {
           return {
-            content: [
-              { type: "text" as const, text: "No archived tasks found." },
-            ],
+            content: [{ type: "text" as const, text: "No archived tasks found." }],
           };
         }
         const taskList = tasks
           .map(
-            (t) =>
-              `- Task #${t.local_task_id} (ID: ${t.id}): ${t.description.substring(0, 80)}...`,
+            (t) => `- Task #${t.local_task_id} (ID: ${t.id}): ${t.description.substring(0, 80)}...`,
           )
           .join("\n");
         return {
@@ -1383,15 +1335,12 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         const tasks = result.tasks;
         if (tasks.length === 0) {
           return {
-            content: [
-              { type: "text" as const, text: "No taskboard tasks found." },
-            ],
+            content: [{ type: "text" as const, text: "No taskboard tasks found." }],
           };
         }
         const taskList = tasks
           .map(
-            (t) =>
-              `- Task #${t.local_task_id} (ID: ${t.id}): ${t.description.substring(0, 80)}...`,
+            (t) => `- Task #${t.local_task_id} (ID: ${t.id}): ${t.description.substring(0, 80)}...`,
           )
           .join("\n");
         return {
@@ -1408,26 +1357,16 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         const parsed = GetTaskSchema.parse(args);
         const result = await getTask(parsed.project_id, parsed.task_id);
         const task = result.task;
-        const status = await getStatusNameForProject(
-          parsed.project_id,
-          task.status_id,
-        );
+        const status = await getStatusNameForProject(parsed.project_id, task.status_id);
         const priority = getPriorityName(task.priority_id);
-        const tags =
-          task.tag_names.length > 0 ? task.tag_names.join(", ") : "none";
-        const pageUrl =
-          task.selector_info?.url ||
-          task.site?.url ||
-          task.url ||
-          "Not available";
+        const tags = task.tag_names.length > 0 ? task.tag_names.join(", ") : "none";
+        const pageUrl = task.selector_info?.url || task.site?.url || task.url || "Not available";
         const selector = task.selector_info?.selector || "Not available";
         const clientInfo = task.client_info || {};
         const os = clientInfo.operating_system || task.os || "Not available";
         const browser = clientInfo.browser || task.browser || "Not available";
-        const resolution =
-          clientInfo.resolution || task.resolution || "Not available";
-        const windowSize =
-          clientInfo.browser_window_size || task.window_size || "Not available";
+        const resolution = clientInfo.resolution || task.resolution || "Not available";
+        const windowSize = clientInfo.browser_window_size || task.window_size || "Not available";
         const colorDepth =
           clientInfo.color_depth ||
           (task.color_depth ? `${task.color_depth} bit` : "Not available");
@@ -1483,10 +1422,7 @@ ${pageUrl}
 
       case "bugherd_get_task_by_local_id": {
         const parsed = GetTaskByLocalIdSchema.parse(args);
-        const result = await getTaskByLocalId(
-          parsed.project_id,
-          parsed.local_task_id,
-        );
+        const result = await getTaskByLocalId(parsed.project_id, parsed.local_task_id);
         const task = result.task;
         return {
           content: [
@@ -1523,11 +1459,7 @@ ${pageUrl}
 
       case "bugherd_move_tasks": {
         const parsed = MoveTasksSchema.parse(args);
-        await moveTasks(
-          parsed.project_id,
-          parsed.task_ids,
-          parsed.destination_project_id,
-        );
+        await moveTasks(parsed.project_id, parsed.task_ids, parsed.destination_project_id);
         return {
           content: [
             {
@@ -1546,16 +1478,9 @@ ${pageUrl}
           description: parsed.description,
           assigned_to_id: parsed.assigned_to_id,
         };
-        const result = await updateTask(
-          parsed.project_id,
-          parsed.task_id,
-          options,
-        );
+        const result = await updateTask(parsed.project_id, parsed.task_id, options);
         const task = result.task;
-        const status = await getStatusNameForProject(
-          parsed.project_id,
-          task.status_id,
-        );
+        const status = await getStatusNameForProject(parsed.project_id, task.status_id);
         const priority = getPriorityName(task.priority_id);
         const debugInfo = result._debug
           ? `\n\n---\n**Debug:**\n\`\`\`json\n${JSON.stringify(result._debug, null, 2)}\n\`\`\``
@@ -1589,10 +1514,7 @@ ${pageUrl}
         }
         const columnList = columns
           .sort((a, b) => a.position - b.position)
-          .map(
-            (col) =>
-              `- **${col.name}** (ID: ${col.id}, Position: ${col.position})`,
-          )
+          .map((col) => `- **${col.name}** (ID: ${col.id}, Position: ${col.position})`)
           .join("\n");
         return {
           content: [
@@ -1642,11 +1564,7 @@ ${pageUrl}
           name: parsed.name,
           position: parsed.position,
         };
-        const result = await updateColumn(
-          parsed.project_id,
-          parsed.column_id,
-          data,
-        );
+        const result = await updateColumn(parsed.project_id, parsed.column_id, data);
         const col = result.column;
         return {
           content: [
@@ -1667,15 +1585,11 @@ ${pageUrl}
         const comments = result.comments;
         if (comments.length === 0) {
           return {
-            content: [
-              { type: "text" as const, text: "No comments on this task." },
-            ],
+            content: [{ type: "text" as const, text: "No comments on this task." }],
           };
         }
         const commentList = comments
-          .map(
-            (c) => `**${c.user.display_name}** (${c.created_at}):\n> ${c.text}`,
-          )
+          .map((c) => `**${c.user.display_name}** (${c.created_at}):\n> ${c.text}`)
           .join("\n\n---\n\n");
         return {
           content: [
@@ -1694,11 +1608,7 @@ ${pageUrl}
           user_id: parsed.user_id,
           email: parsed.email,
         };
-        const result = await createComment(
-          parsed.project_id,
-          parsed.task_id,
-          data,
-        );
+        const result = await createComment(parsed.project_id, parsed.task_id, data);
         return {
           content: [
             {
@@ -1718,16 +1628,11 @@ ${pageUrl}
         const attachments = result.attachments;
         if (attachments.length === 0) {
           return {
-            content: [
-              { type: "text" as const, text: "No attachments on this task." },
-            ],
+            content: [{ type: "text" as const, text: "No attachments on this task." }],
           };
         }
         const attachmentList = attachments
-          .map(
-            (a) =>
-              `- **${a.file_name}** (ID: ${a.id}, ${a.file_size} bytes)\n  URL: ${a.url}`,
-          )
+          .map((a) => `- **${a.file_name}** (ID: ${a.id}, ${a.file_size} bytes)\n  URL: ${a.url}`)
           .join("\n");
         return {
           content: [
@@ -1741,11 +1646,7 @@ ${pageUrl}
 
       case "bugherd_get_attachment": {
         const parsed = GetAttachmentSchema.parse(args);
-        const result = await getAttachment(
-          parsed.project_id,
-          parsed.task_id,
-          parsed.attachment_id,
-        );
+        const result = await getAttachment(parsed.project_id, parsed.task_id, parsed.attachment_id);
         const a = result.attachment;
         return {
           content: [
@@ -1763,11 +1664,7 @@ ${pageUrl}
           file_name: parsed.file_name,
           url: parsed.url,
         };
-        const result = await createAttachment(
-          parsed.project_id,
-          parsed.task_id,
-          data,
-        );
+        const result = await createAttachment(parsed.project_id, parsed.task_id, data);
         const a = result.attachment;
         return {
           content: [
@@ -1781,11 +1678,7 @@ ${pageUrl}
 
       case "bugherd_delete_attachment": {
         const parsed = DeleteAttachmentSchema.parse(args);
-        await deleteAttachment(
-          parsed.project_id,
-          parsed.task_id,
-          parsed.attachment_id,
-        );
+        await deleteAttachment(parsed.project_id, parsed.task_id, parsed.attachment_id);
         return {
           content: [
             {
@@ -1804,9 +1697,7 @@ ${pageUrl}
         const webhooks = result.webhooks;
         if (webhooks.length === 0) {
           return {
-            content: [
-              { type: "text" as const, text: "No webhooks configured." },
-            ],
+            content: [{ type: "text" as const, text: "No webhooks configured." }],
           };
         }
         const webhookList = webhooks
@@ -1867,8 +1758,7 @@ ${pageUrl}
         };
     }
   } catch (error) {
-    const errorMessage =
-      error instanceof Error ? error.message : "Unknown error occurred";
+    const errorMessage = error instanceof Error ? error.message : "Unknown error occurred";
     return {
       content: [
         {
@@ -1891,71 +1781,73 @@ if (PORT) {
   // HTTP mode - shared server for multiple Claude sessions
   const sessions = new Map<string, SSEServerTransport>();
 
-  const httpServer = createServer(
-    async (req: IncomingMessage, res: ServerResponse) => {
-      res.setHeader("Access-Control-Allow-Origin", "*");
-      res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-      res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+  const httpServer = createServer(async (req: IncomingMessage, res: ServerResponse) => {
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type");
 
-      if (req.method === "OPTIONS") {
-        res.writeHead(204);
-        res.end();
+    if (req.method === "OPTIONS") {
+      res.writeHead(204);
+      res.end();
+      return;
+    }
+
+    const url = new URL(req.url || "/", `http://localhost:${PORT}`);
+
+    if (url.pathname === "/health") {
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ status: "ok", sessions: sessions.size }));
+      return;
+    }
+
+    if (url.pathname === "/sse") {
+      const transport = new SSEServerTransport("/message", res);
+      const sessionId = crypto.randomUUID();
+      sessions.set(sessionId, transport);
+
+      res.on("close", () => {
+        sessions.delete(sessionId);
+      });
+
+      await server.connect(transport);
+      return;
+    }
+
+    if (url.pathname === "/message" && req.method === "POST") {
+      const sessionId = url.searchParams.get("sessionId");
+      if (!sessionId) {
+        res.writeHead(400, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "Missing sessionId" }));
         return;
       }
 
-      const url = new URL(req.url || "/", `http://localhost:${PORT}`);
-
-      if (url.pathname === "/health") {
-        res.writeHead(200, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ status: "ok", sessions: sessions.size }));
+      const transport = sessions.get(sessionId);
+      if (!transport) {
+        res.writeHead(404, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "Session not found" }));
         return;
       }
 
-      if (url.pathname === "/sse") {
-        const transport = new SSEServerTransport("/message", res);
-        const sessionId = crypto.randomUUID();
-        sessions.set(sessionId, transport);
-
-        res.on("close", () => {
-          sessions.delete(sessionId);
-        });
-
-        await server.connect(transport);
-        return;
-      }
-
-      if (url.pathname === "/message" && req.method === "POST") {
-        const sessionId = url.searchParams.get("sessionId");
-        if (!sessionId) {
-          res.writeHead(400, { "Content-Type": "application/json" });
-          res.end(JSON.stringify({ error: "Missing sessionId" }));
-          return;
+      let body = "";
+      req.on("data", (chunk) => (body += chunk));
+      req.on("end", async () => {
+        try {
+          await transport.handlePostMessage(req, res, body);
+        } catch (err) {
+          console.error(
+            "[HTTP /message] Handler failed:",
+            err instanceof Error ? err.message : String(err),
+          );
+          res.writeHead(500, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ error: "Internal server error" }));
         }
+      });
+      return;
+    }
 
-        const transport = sessions.get(sessionId);
-        if (!transport) {
-          res.writeHead(404, { "Content-Type": "application/json" });
-          res.end(JSON.stringify({ error: "Session not found" }));
-          return;
-        }
-
-        let body = "";
-        req.on("data", (chunk) => (body += chunk));
-        req.on("end", async () => {
-          try {
-            await transport.handlePostMessage(req, res, body);
-          } catch {
-            res.writeHead(500, { "Content-Type": "application/json" });
-            res.end(JSON.stringify({ error: "Internal server error" }));
-          }
-        });
-        return;
-      }
-
-      res.writeHead(404, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ error: "Not found" }));
-    },
-  );
+    res.writeHead(404, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ error: "Not found" }));
+  });
 
   httpServer.listen(PORT, () => {
     console.error(`BugHerd MCP Server running on http://localhost:${PORT}`);
